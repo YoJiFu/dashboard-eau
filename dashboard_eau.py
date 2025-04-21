@@ -3,22 +3,28 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pyairtable import Table
 from datetime import datetime
+import time
 
-# ---- Paramètres Airtable ----
-AIRTABLE_TOKEN = st.secrets["AIRTABLE_TOKEN"]
-BASE_ID = st.secrets["BASE_ID"]
-TABLE_NAME = st.secrets["TABLE_NAME"]
-DASHBOARD_PASSWORD = st.secrets["PASSWORD"]
+# ---- Configuration page ----
+st.set_page_config(
+    page_title="Suivi de l'eau 💧",
+    page_icon="💧",
+    layout="wide"
+)
 
-# ---- Connexion à Airtable ----
-@st.cache_resource
-def connect_airtable():
-    return Table(AIRTABLE_TOKEN, BASE_ID, TABLE_NAME)
+# ---- Rafraîchissement automatique ----
+AUTO_REFRESH_INTERVAL = 300  # 5 minutes
 
-# ---- Fonction de mot de passe ----
+if "last_refresh" not in st.session_state:
+    st.session_state["last_refresh"] = time.time()
+
+elapsed = time.time() - st.session_state["last_refresh"]
+remaining = int(AUTO_REFRESH_INTERVAL - elapsed)
+
+# ---- Mot de passe ----
 def check_password():
     def password_entered():
-        if st.session_state["password"] == DASHBOARD_PASSWORD:
+        if st.session_state["password"] == st.secrets["PASSWORD"]:
             st.session_state["password_correct"] = True
         else:
             st.session_state["password_correct"] = False
@@ -33,25 +39,42 @@ def check_password():
     else:
         return True
 
-# ---- Main app ----
+# ---- Main App ----
 if check_password():
+    # Petite bannière info
+    with st.container():
+        st.info("🔄 Rafraîchissement automatique toutes les 5 minutes activé", icon="⏳")
+
+    # Compteur de rafraîchissement
+    if remaining > 0:
+        st.caption(f"⏳ Prochaine actualisation dans **{remaining}** secondes")
+    else:
+        st.session_state["last_refresh"] = time.time()
+        st.experimental_rerun()
+
     st.title("💧 Suivi de la consommation d'eau")
 
-    table = connect_airtable()
+    # Connexion à Airtable et chargement sous spinner
+    with st.spinner("Chargement des données... 💧"):
+        AIRTABLE_TOKEN = st.secrets["AIRTABLE_TOKEN"]
+        BASE_ID = st.secrets["BASE_ID"]
+        TABLE_NAME = st.secrets["TABLE_NAME"]
 
-    # Charger les données
-    records = table.all()
-    df = pd.DataFrame([{
-        "date": r['fields']['date'],
-        "volume": r['fields']['volume']
-    } for r in records if 'date' in r['fields'] and 'volume' in r['fields']])
+        table = Table(AIRTABLE_TOKEN, BASE_ID, TABLE_NAME)
+
+        records = table.all()
+        df = pd.DataFrame([{
+            "date": r['fields']['date'],
+            "volume": r['fields']['volume']
+        } for r in records if 'date' in r['fields'] and 'volume' in r['fields']])
+
+        if not df.empty:
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date')
 
     if df.empty:
         st.info("Aucune donnée trouvée. Ajoutez votre première mesure 👇")
     else:
-        df['date'] = pd.to_datetime(df['date'])
-        df = df.sort_values('date')
-
         # --- Section Graphique ---
         st.subheader("📈 Évolution de la consommation")
         fig, ax = plt.subplots()
@@ -62,7 +85,7 @@ if check_password():
         ax.grid(True)
         st.pyplot(fig)
 
-        # --- Section Statistiques jolies ---
+        # --- Statistiques jolies ---
         st.subheader("📊 Statistiques globales")
         consommation_totale = df['volume'].iloc[-1] - df['volume'].iloc[0]
 
@@ -78,7 +101,7 @@ if check_password():
 
         st.divider()
 
-    # --- Formulaire pour ajouter un nouveau relevé ---
+    # --- Formulaire pour ajouter une mesure ---
     st.subheader("➕ Ajouter une nouvelle mesure")
     with st.form(key="ajout_form"):
         nouvelle_date = st.date_input("Date du relevé")
@@ -93,7 +116,15 @@ if check_password():
         st.success(f"✅ Relevé ajouté : {nouvelle_date} - {nouveau_volume} m³")
         st.experimental_rerun()
 
-    # --- Section Tableau brut ---
+    # --- Tableau brut et bouton Export CSV ---
     if not df.empty:
         st.subheader("📋 Données brutes")
         st.dataframe(df, use_container_width=True)
+
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Télécharger les données au format CSV",
+            data=csv,
+            file_name='consommation_eau.csv',
+            mime='text/csv'
+        )
