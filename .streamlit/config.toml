@@ -1,0 +1,7 @@
+[theme]
+base="light"
+primaryColor="#4DA8DA"               # Bleu clair pour boutons, sliders, etc.
+backgroundColor="#F9FAFB"             # Fond légèrement gris clair, reposant pour les yeux
+secondaryBackgroundColor="#E8F0FE"    # Fond bleu très pâle pour les containers
+textColor="#262730"                   # Texte presque noir pour une excellente lisibilité
+font="sans serif"                     # Police moderne et facile à lire
