@@ -19,7 +19,3 @@ Ce projet est un tableau de bord interactif développé avec Streamlit.
 
 ## Déploiement
 Déployé sur [Streamlit Community Cloud](https://streamlit.io/cloud).
-
----
-
-Made with ❤️ by Yo.
